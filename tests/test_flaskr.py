@@ -144,6 +144,51 @@ class TestFlaskr:
             # the database state is not guaranteed. In a real-world scenario,
             # you might want to set up a known database state before running this test.
 
+    def test_remove_entry(self):
+        """
+        Test that an entry can be removed when the user is logged in.
+        """
+        with app.test_client() as client:
+            # First, log in
+            client.post('/login', data={
+                'username': app.config['USERNAME'],
+                'password': app.config['PASSWORD']
+            })
+            
+            # Add an entry
+            client.post('/add', data={
+                'title': 'Test Title',
+                'text': 'Test Text'
+            })
+            
+            # Get the entries to find the ID of the entry we just added
+            with app.app_context():
+                db = get_db()
+                entry = db.execute('SELECT id FROM entries WHERE title = ?', ['Test Title']).fetchone()
+                entry_id = entry['id']
+            
+            # Remove the entry
+            response = client.post(f'/remove/{entry_id}', follow_redirects=True)
+            
+            # Check if the response contains the success message
+            assert b'Entry was successfully deleted' in response.data
+            
+            # Verify the entry is no longer in the database
+            with app.app_context():
+                db = get_db()
+                entry = db.execute('SELECT * FROM entries WHERE id = ?', [entry_id]).fetchone()
+                assert entry is None
+
+    def test_remove_entry_unauthorized(self):
+        """
+        Test that an entry cannot be removed when the user is not logged in.
+        """
+        with app.test_client() as client:
+            # Try to remove an entry without logging in
+            response = client.post('/remove/1')
+            
+            # Should get a 401 Unauthorized response
+            assert response.status_code == 401
 
 
 class AuthActions(object):
